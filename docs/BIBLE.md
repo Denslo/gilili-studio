@@ -164,6 +164,8 @@ paths and classic `<script>` tags (no modules, no fetch)**, so the site works by
 simply double-clicking `site/index.html` (`file://`) — keep it that way. Serving
 it also works: `cd site && python3 -m http.server 8000`.
 
+**Hosting:** the repo is https://github.com/Denslo/gilili-studio (public). `.github/workflows/pages.yml` publishes `site/` to GitHub Pages on every push to `main`, so the live site is https://denslo.github.io/gilili-studio/ (the index) — push and it updates in about a minute.
+
 ## 6. Page catalog
 
 The 2026-11-15 cut kept only these four pages. The removed ones (Ten Machine,
