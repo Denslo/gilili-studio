@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="nl_title">Number Line Jumps</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔢</text></svg>">
+  <link rel="stylesheet" href="../assets/style.css">
+  <style>
+    svg { width: 100%; height: auto; display: block; overflow: visible; }
+    .tick { stroke: var(--ink); stroke-width: 2; }
+    .tick.ten { stroke: var(--tens); stroke-width: 4; }
+    .num { font: 800 15px Nunito, sans-serif; fill: var(--muted); text-anchor: middle; }
+    .num.ten { font-size: 22px; font-weight: 900; fill: var(--tens); }
+    .arc { fill: none; stroke-width: 4; stroke-linecap: round; }
+    .arc.a1 { stroke: var(--ones); }
+    .arc.a2 { stroke: var(--good); }
+    .arc-lbl { font: 900 22px Nunito, sans-serif; text-anchor: middle; opacity: 0; }
+    .arc-lbl.show { animation: lblPop .5s var(--spring) forwards; }
+    @keyframes lblPop { from { opacity: 0; translate: 0 10px; } to { opacity: 1; translate: 0 0; } }
+    .kanga { font-size: 44px; text-anchor: middle; }
+    .ripple { fill: none; stroke: var(--ones); stroke-width: 3; }
+    .problem { font-size: 52px; font-weight: 900; text-align: center; }
+    .problem .ans { display: inline-block; }
+    .problem .ans.solved { animation: popSpring .7s var(--settle); }
+    .bond { display: flex; flex-direction: column; align-items: center; gap: 0; direction: ltr; }
+    .bond .top, .bond .part { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; font-size: 30px; font-weight: 900; border: 4px solid var(--ink); background: #fff; }
+    .bond .part.filled { animation: popSpring .6s var(--settle); }
+    .bond .parts { display: flex; gap: 40px; }
+    .bond .part.p1 { border-color: var(--ones); color: var(--ones); }
+    .bond .part.p2 { border-color: var(--good); color: var(--good); }
+    .bond svg { width: 140px; height: 30px; }
+    .layout { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; }
+    @media (max-width: 640px) { .layout { grid-template-columns: 1fr; } .problem { font-size: 40px; } }
+    .q { font-size: 22px; font-weight: 800; text-align: center; }
+    .summary { font-size: 26px; font-weight: 900; text-align: center; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="../index.html" data-i18n="back"></a>
+    <h1 data-i18n="nl_title"></h1>
+    <div class="toggles" data-toggles></div>
+  </header>
+
+  <main class="page stack">
+    <p class="intro" data-i18n="nl_intro"></p>
+
+    <div class="card stack">
+      <div class="chips">
+        <span class="label" data-i18n="nl_practice"></span>
+        <button class="chip active" data-mode="add" data-i18n="nl_add"></button>
+        <button class="chip" data-mode="sub" data-i18n="nl_sub"></button>
+        <button class="chip" data-mode="mix" data-i18n="nl_both"></button>
+      </div>
+      <div class="layout">
+        <div class="problem" id="problem"></div>
+        <div class="bond" id="bond">
+          <div class="top" id="bTop"></div>
+          <svg viewBox="0 0 140 30"><line x1="70" y1="0" x2="34" y2="30" stroke="#2b2a33" stroke-width="3"/><line x1="70" y1="0" x2="106" y2="30" stroke="#2b2a33" stroke-width="3"/></svg>
+          <div class="parts"><div class="part p1" id="bP1">?</div><div class="part p2" id="bP2">?</div></div>
+        </div>
+      </div>
+      <svg id="line" viewBox="0 0 760 170"></svg>
+      <div class="q" id="question"></div>
+      <div class="choices" id="choices"></div>
+      <div class="caption" id="caption"></div>
+      <div class="controls">
+        <button class="btn ghost small" id="show" data-i18n="nl_show"></button>
+        <button class="btn blue small" id="next" data-i18n="nl_next"></button>
+      </div>
+    </div>
+  </main>
+
+  <script src="../assets/strings.js"></script>
+  <script src="../assets/common.js"></script>
+  <script>
+    const el = id => document.getElementById(id);
+    const { t, eq } = PV;
+    const svg = el('line'), caption = el('caption');
+    const NS = 'http://www.w3.org/2000/svg';
+    const W = 760, Y = 120, PAD = 30;
+    let mode = 'add', P, step, lo, hi, walker, solved = 0;
+    // busy: a hop or the answer feedback is playing, so clicks are ignored; gen: bumped on every new problem so late timers from the old one do nothing
+    let busy = false, showing = false, gen = 0;
+    const HOP_MS = 1200;
+
+    function newProblem() {
+      const add = mode === 'add' || (mode === 'mix' && Math.random() < .5);
+      let a, b;
+      if (add) { const o = PV.rand(2, 9); a = PV.rand(1, 8) * 10 + o; b = PV.rand(11 - o, 9); }
+      else { const o = PV.rand(1, 7); a = PV.rand(2, 9) * 10 + o; b = PV.rand(o + 1, 9); }
+      const s1 = add ? 10 - a % 10 : a % 10;
+      const ten = add ? a + s1 : a - s1;
+      const result = add ? a + b : a - b;
+      P = { add, a, b, s1, s2: b - s1, ten, result, sign: add ? '+' : '−' };
+      step = 0; gen++; busy = false; showing = false; el('show').disabled = false;
+      el('problem').innerHTML = `${a} ${P.sign} ${b} = <span class="ans" style="color:var(--muted)">?</span>`;
+      el('bTop').textContent = b;
+      ['bP1', 'bP2'].forEach(id => { el(id).textContent = '?'; el(id).classList.remove('filled'); });
+      drawLine();
+      ask();
+    }
+    function fillBond(id, v) { el(id).textContent = v; el(id).classList.add('filled'); }
+
+    function x(k) { return PAD + (k - lo) / (hi - lo) * (W - 2 * PAD); }
+    function mk(tag, attrs, parent = svg) {
+      const e = document.createElementNS(NS, tag);
+      for (const k in attrs) e.setAttribute(k, attrs[k]);
+      parent.append(e); return e;
+    }
+    function drawLine() {
+      svg.replaceChildren();
+      lo = Math.min(P.a, P.result) - 2; hi = Math.min(99, Math.max(P.a, P.result) + 2);   // every number stays under 100
+      mk('line', { x1: PAD - 10, y1: Y, x2: W - PAD + 10, y2: Y, class: 'tick' });
+      for (let k = lo; k <= hi; k++) {
+        const ten = k % 10 === 0;
+        mk('line', { x1: x(k), y1: Y - (ten ? 14 : 8), x2: x(k), y2: Y + (ten ? 14 : 8), class: 'tick' + (ten ? ' ten' : '') });
+        mk('text', { x: x(k), y: Y + (ten ? 40 : 32), class: 'num' + (ten ? ' ten' : '') }).textContent = k;
+      }
+      walker = mk('g', { class: 'walker' });
+      mk('circle', { cx: 0, cy: Y, r: 11, fill: 'var(--ones)', stroke: '#fff', 'stroke-width': 3 }, walker);
+      // the kangaroo stands on the dot; the emoji faces left, so mirror it when we are adding (moving right)
+      kanga = mk('text', { class: 'kanga', x: 0, y: 0, transform: `translate(0 ${Y - 14}) scale(${P.add ? -1 : 1} 1)` }, walker);
+      kanga.textContent = '🦘';
+      if (hopId) cancelAnimationFrame(hopId);
+      placeWalker(x(P.a), 0);
+    }
+    let kanga, hopId = 0;
+    const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    function placeWalker(px, dy, sx = 1, sy = 1) {
+      walker.setAttribute('transform', `translate(${px.toFixed(1)} ${dy.toFixed(1)})`);
+      kanga.setAttribute('transform', `translate(0 ${Y - 14}) scale(${(P.add ? -1 : 1) * sx} ${sy})`);
+    }
+    /* one hop: the arc draws itself and the kangaroo rides its tip, then lands with a squash and a ripple */
+    function arc(from, to, cls, label) {
+      const x1 = x(from), x2 = x(to), h = 28 + Math.abs(x2 - x1) * .25, mx = (x1 + x2) / 2;
+      const p = mk('path', { d: `M ${x1} ${Y - 6} Q ${mx} ${Y - 6 - 2 * h} ${x2} ${Y - 6}`, class: 'arc ' + cls });
+      const len = p.getTotalLength();
+      p.style.strokeDasharray = len; p.style.strokeDashoffset = len;
+      const lbl = mk('text', { x: mx, y: Y - 14 - h, class: 'arc-lbl', fill: cls === 'a1' ? 'var(--ones)' : 'var(--good)' });
+      lbl.textContent = label;
+      svg.append(walker);                      // keep the kangaroo above the arcs
+      const ripple = mk('circle', { cx: x2, cy: Y, r: 0, class: 'ripple', opacity: 0 });
+      const HOP = 900, SETTLE = 260, t0 = performance.now();
+      if (hopId) cancelAnimationFrame(hopId);
+      PV.sound.boing(0);
+      const frame = now => {
+        const t = Math.min(1, (now - t0) / HOP);
+        if (t < 1) {
+          const e = ease(t), pt = p.getPointAtLength(len * e);
+          p.style.strokeDashoffset = len * (1 - e);
+          // stretch while flying, lean into the direction of travel
+          placeWalker(pt.x, pt.y - (Y - 6), 1 - .06 * Math.sin(t * Math.PI), 1 + .12 * Math.sin(t * Math.PI));
+          if (t > .55) lbl.classList.add('show');
+          hopId = requestAnimationFrame(frame);
+          return;
+        }
+        p.style.strokeDashoffset = 0; lbl.classList.add('show');
+        const s = Math.min(1, (now - t0 - HOP) / SETTLE), k = 1 - Math.pow(1 - s, 3);
+        placeWalker(x2, 0, 1 + .18 * (1 - k), 1 - .22 * (1 - k));
+        ripple.setAttribute('r', 6 + 20 * k); ripple.setAttribute('opacity', (1 - k) * .8);
+        if (s < 1) hopId = requestAnimationFrame(frame); else { hopId = 0; ripple.remove(); PV.sound.pop(); }
+      };
+      hopId = requestAnimationFrame(frame);
+    }
+
+    function choicesFor(correct, pool) {
+      const opts = new Set([correct]);
+      PV.shuffle(pool.filter(v => v !== correct && v >= 0 && v <= 99)).forEach(v => opts.size < 4 && opts.add(v));
+      for (let v = 1; opts.size < 4; v++) opts.add(v);
+      return PV.shuffle([...opts]);
+    }
+
+    function ask() {
+      const q = el('question'), box = el('choices');
+      box.replaceChildren();
+      let correct, pool;
+      if (step === 0) {
+        q.innerHTML = t(P.add ? 'nl_q0_add' : 'nl_q0_sub', { a: P.a, ten: P.ten });
+        correct = P.s1; pool = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+        caption.innerHTML = t('nl_step1'); caption.className = 'caption';
+      } else if (step === 1) {
+        q.innerHTML = t(P.add ? 'nl_q1_add' : 'nl_q1_sub', { b: P.b, s1: P.s1 });
+        correct = P.s2; pool = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+      } else if (step === 2) {
+        q.innerHTML = t('nl_q2', { eq: eq(`<b>${P.a} ${P.sign} ${P.b}</b>`) });
+        correct = P.result;
+        const noCarry = P.add ? Math.floor(P.a / 10) * 10 + (P.a % 10 + P.b) % 10 : Math.floor(P.a / 10) * 10 + (P.a % 10 + 10 - P.b);
+        pool = [P.result + 10, P.result - 10, noCarry, P.result + 1, P.result - 1];
+      } else {
+        q.innerHTML = '';
+        return;
+      }
+      choicesFor(correct, pool).forEach(v => {
+        const b = document.createElement('button'); b.className = 'btn choice'; b.textContent = v;
+        b.onclick = () => answer(v, correct, b);
+        box.append(b);
+      });
+    }
+
+    function doStep(thenAsk = true) {
+      const g = gen;
+      busy = true; el('choices').replaceChildren();
+      if (step === 0) {
+        arc(P.a, P.ten, 'a1', `${P.sign}${P.s1}`);
+        fillBond('bP1', P.s1);
+        caption.innerHTML = t('nl_c0', { eq: eq(`${P.a} ${P.sign} <b class="o">${P.s1}</b> = <b class="t">${P.ten}</b>`) }); caption.className = 'caption good';
+        // landing exactly on the ten is the teaching moment — a small cheer when the kangaroo lands
+        setTimeout(() => g === gen && PV.celebrate('small', { sound: false }), 900);
+      } else if (step === 1) {
+        arc(P.ten, P.result, 'a2', `${P.sign}${P.s2}`);
+        fillBond('bP2', P.s2);
+        caption.innerHTML = t('nl_c1', { b: P.b, s1: P.s1, s2: P.s2, eq: eq(`${P.ten} ${P.sign} ${P.s2} = <b>${P.result}</b>`) }); caption.className = 'caption good';
+      } else if (step === 2) {
+        el('problem').innerHTML = `${P.a} ${P.sign} ${P.b} = <span class="ans solved" style="color:var(--good)">${P.result}</span>`;
+        el('question').innerHTML = `<div class="summary">${P.a} ${P.sign} <span class="o">${P.s1}</span> = <span class="t">${P.ten}</span><br>${P.ten} ${P.sign} <span class="g">${P.s2}</span> = <b>${P.result}</b></div>`;
+        caption.innerHTML = t('nl_great', { eq: eq(`${P.a} ${P.sign} ${P.b} = <b>${P.result}</b>`) }); caption.className = 'caption good';
+        PV.celebrate(++solved % 3 === 0 ? 'big' : 'small');        // every 3rd solved problem gets the big one
+        PV.say(t(P.add ? 'nl_say_add' : 'nl_say_sub', { a: PV.word(P.a), b: PV.word(P.b), r: PV.word(P.result) }));
+      }
+      step++;
+      // the next question appears once the kangaroo has landed
+      setTimeout(() => {
+        if (g !== gen) return;
+        busy = false;
+        if (step <= 2 && thenAsk) ask();
+      }, step <= 2 ? HOP_MS : 300);
+    }
+
+    function answer(v, correct, btn) {
+      if (busy || showing) return;
+      if (v === correct) {
+        busy = true; const g = gen;
+        el('choices').querySelectorAll('button').forEach(b => b.disabled = b !== btn);
+        btn.classList.add('right'); PV.sound.good(); PV.sparkle(btn);
+        setTimeout(() => g === gen && doStep(), 300);
+      }
+      else {
+        btn.classList.add('wrong'); btn.disabled = true; PV.sound.bad();
+        caption.className = 'caption warn';
+        caption.innerHTML = step === 0 ? t('nl_h0', { a: P.a, ten: P.ten })
+          : step === 1 ? t('nl_h1', { eq: eq(`${P.b} = ${P.s1} + ?`), s1: P.s1, b: P.b })
+          : t('nl_h2');
+      }
+    }
+
+    el('show').onclick = async () => {
+      if (busy || showing || step > 2) return;
+      showing = true; el('show').disabled = true;
+      const g = gen;
+      while (step <= 2 && g === gen) { doStep(false); await PV.wait(1700); }
+      if (g === gen) showing = false;          // stays disabled: the problem is solved, "next" starts a new one
+    };
+    el('next').onclick = newProblem;
+    document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
+      document.querySelectorAll('[data-mode]').forEach(x => x.classList.toggle('active', x === b));
+      mode = b.dataset.mode; newProblem();
+    });
+    newProblem();
+  </script>
+</body>
+</html>

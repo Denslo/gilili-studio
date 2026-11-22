@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="site_title">Number Lab</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔢</text></svg>">
+  <link rel="stylesheet" href="assets/style.css">
+  <style>
+    .home-bar { display: flex; justify-content: flex-end; padding: 12px 16px 0; max-width: 980px; margin: 0 auto; }
+    .hero { text-align: center; padding: 8px 16px 8px; }
+    .hero h1 { font-size: clamp(34px, 7vw, 54px); margin: 0; font-weight: 900; }
+    .hero p { color: var(--muted); font-size: 19px; margin: 8px auto 0; max-width: 620px; }
+    .big-idea { display: flex; gap: 14px; align-items: center; justify-content: center; flex-wrap: wrap; font-size: 22px; font-weight: 900; }
+    .big-idea .eqsign { font-size: 30px; }
+    h2 { font-size: 24px; margin: 30px 0 4px; }
+    h2 + .sub { color: var(--muted); margin: 0 0 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+    .tile {
+      display: flex; flex-direction: column; gap: 6px; text-decoration: none; color: var(--ink);
+      background: var(--card); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow);
+      border: 3px solid transparent; transition: transform .15s, border-color .15s;
+    }
+    .tile:hover { transform: translateY(-3px); border-color: var(--tens); }
+    .tile .ico { font-size: 40px; line-height: 1; }
+    .tile h3 { margin: 4px 0 0; font-size: 21px; }
+    .tile p { margin: 0; color: var(--muted); font-size: 16px; }
+    .tile .tag { align-self: flex-start; font-size: 13px; font-weight: 900; padding: 3px 10px; border-radius: 999px; background: var(--bg); color: var(--muted); margin-top: auto; }
+    .tile.star { border-color: var(--ones); }
+    .tile.star .tag { background: var(--ones); color: #fff; }
+    .tips { columns: 2 300px; column-gap: 28px; }
+    .tips li { break-inside: avoid; margin-bottom: 10px; }
+    footer { text-align: center; color: var(--muted); font-size: 14px; margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <div class="home-bar"><div class="toggles" data-toggles></div></div>
+  <main class="page">
+    <section class="hero">
+      <h1>🔢 <span class="t" data-i18n="hero_a"></span> <span class="o" data-i18n="hero_b"></span></h1>
+      <p data-i18n="hero_sub"></p>
+    </section>
+
+    <div class="card" style="margin-top:16px">
+      <div class="big-idea">
+        <span class="o" data-i18n="idea_ones"></span><span class="eqsign">=</span><span class="t" data-i18n="idea_ten"></span>
+        <span style="color:var(--muted);font-weight:700;font-size:18px" data-i18n="idea_note"></span>
+      </div>
+    </div>
+
+    <h2 data-i18n="sec_watch"></h2>
+    <p class="sub" data-i18n="sec_watch_sub"></p>
+    <div class="grid">
+      <a class="tile star" href="pages/bundles.html">
+        <div class="ico">🪵</div><h3 data-i18n="bu_name"></h3>
+        <p data-i18n="bu_desc"></p>
+        <span class="tag" data-i18n="tag_start"></span>
+      </a>
+      <a class="tile" href="pages/bundles-add.html">
+        <div class="ico">➕</div><h3 data-i18n="ba_name"></h3>
+        <p data-i18n="ba_desc"></p>
+        <span class="tag"><span class="eq">26 + 47</span></span>
+      </a>
+    </div>
+
+    <h2 data-i18n="sec_strat"></h2>
+    <p class="sub" data-i18n="sec_strat_sub"></p>
+    <div class="grid">
+      <a class="tile" href="pages/number-line.html">
+        <div class="ico">🦘</div><h3 data-i18n="nl_name"></h3>
+        <p data-i18n="nl_desc"></p>
+        <span class="tag" data-i18n="tag_addsub"></span>
+      </a>
+    </div>
+
+    <h2 data-i18n="sec_games"></h2>
+    <p class="sub" data-i18n="sec_games_sub"></p>
+    <div class="grid">
+      <a class="tile" href="pages/edge-match.html">
+        <div class="ico">👯</div><h3 data-i18n="em_name"></h3>
+        <p data-i18n="em_desc"></p>
+        <span class="tag" data-i18n="tag_memory"></span>
+      </a>
+      <a class="tile" href="pages/spot-mistake.html">
+        <div class="ico">🦉</div><h3 data-i18n="sm_name"></h3>
+        <p data-i18n="sm_desc"></p>
+        <span class="tag" data-i18n="tag_listen"></span>
+      </a>
+      <a class="tile" href="pages/arrow-race.html">
+        <div class="ico">🏁</div><h3 data-i18n="ar_name"></h3>
+        <p data-i18n="ar_desc"></p>
+        <span class="tag" data-i18n="tag_race"></span>
+      </a>
+    </div>
+
+    <h2 data-i18n="tips_title"></h2>
+    <div class="card">
+      <ul class="tips">
+        <li data-i18n="tip1"></li>
+        <li data-i18n="tip2"></li>
+        <li data-i18n="tip3"></li>
+        <li data-i18n="tip4"></li>
+        <li data-i18n="tip5"></li>
+        <li data-i18n="tip6"></li>
+        <li data-i18n="tip7"></li>
+        <li data-i18n="tip8"></li>
+      </ul>
+    </div>
+
+    <footer data-i18n="footer"></footer>
+  </main>
+
+  <script src="assets/strings.js"></script>
+  <script src="assets/common.js"></script>
+</body>
+</html>

@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="ba_title">Adding with Sticks</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔢</text></svg>">
+  <link rel="stylesheet" href="../assets/style.css">
+  <style>
+    /* the big equation on top */
+    .problem { font-size: 48px; font-weight: 900; text-align: center; line-height: 1.1; }
+    .problem .ans { display: inline-block; color: var(--muted); }
+    .problem .ans.solved { color: var(--good); animation: popSpring .7s var(--settle); }
+
+    /* three rows of mats (first number, second number, together) aligned with the written column sum.
+       Tens left, ones right, digits on the far right — always left-to-right. */
+    .ba { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) auto; gap: 8px 10px; direction: ltr; align-items: stretch; }
+    .ba .lbl { font-weight: 900; text-align: center; font-size: 16px; align-self: end; }
+    .ba .lbl.t { color: var(--tens); } .ba .lbl.o { color: var(--ones); }
+    .ba .mat { min-height: 92px; overflow: visible; border-width: 3px; position: relative; }
+    .ba .mat-body { padding: 8px; gap: 5px; min-height: 86px; }
+    .ba .mat-tens .mat-body { padding-top: 18px; }
+    .ba .stick { width: 9px; height: 64px; }
+    .ba .bundle { width: 30px; height: 64px; }
+    .ba .bundle::before { font-size: 11px; }
+    .ba .bundle::after { height: 11px; }
+    /* sticks that already moved to the "together" row leave a faint trace */
+    .ba .ghost { opacity: .18; transition: opacity .4s; }
+    /* the number of sticks on the "together" mats */
+    .cnt { position: absolute; top: -12px; left: -8px; min-width: 28px; height: 28px; padding: 0 7px; border-radius: 14px; display: grid; place-items: center;
+      font-size: 17px; font-weight: 900; color: #fff; background: var(--muted); opacity: 0; transform: scale(.6); transition: transform .35s var(--spring), opacity .25s, background .3s; }
+    .cnt.show { opacity: 1; transform: scale(1); }
+    .cnt.many { background: var(--bad); animation: wobble .5s ease infinite; }
+    .mat-tens .cnt { background: var(--tens); } .mat-ones .cnt { background: var(--ones); }
+    .mat-ones .cnt.many { background: var(--bad); }
+    /* ten sticks pulled together inside the ones mat; the rubber band snaps on */
+    .group { display: flex; gap: 5px; align-items: center; position: relative; transition: gap .5s var(--spring), opacity .25s; }
+    .group.grouping { gap: 0; }
+    .group.grouping .stick { margin: 0 -3px; animation: stickSqueeze .5s ease .45s; }
+    .group.grouping .stick:nth-child(odd) { transform: rotate(2deg); }
+    .group.grouping .stick:nth-child(even) { transform: rotate(-2deg); }
+    .group::after { content: ''; position: absolute; left: 50%; top: 50%; width: 0; height: 11px; border-radius: 6px; background: var(--bad);
+      transform: translate(-50%, -50%); transition: width .45s var(--spring) .25s; }
+    .group.grouping::after { width: 40px; animation: bandPing .4s ease .7s; }
+
+    /* the written column sum: [sign] [tens] [ones] */
+    .digits { display: grid; grid-template-columns: 26px 46px 46px; align-items: center; justify-items: center; font-size: 44px; font-weight: 900; line-height: 1; align-self: center; }
+    .digits .sign { color: var(--muted); font-size: 34px; }
+    .digits .d { display: inline-block; }
+    .digits .d.t { color: var(--tens); } .digits .d.o { color: var(--ones); }
+    .digits .d.q { color: var(--line); }
+    .digits .d.write { animation: digitWrite .6s var(--spring); }
+    @keyframes digitWrite { 0% { transform: translateY(-16px) scale(.6); opacity: 0; } 60% { transform: translateY(2px) scale(1.12); opacity: 1; } 100% { transform: none; } }
+    /* the carry: a small blue 1 above the tens digit */
+    .carry-row { display: grid; grid-template-columns: 26px 46px 46px; justify-items: center; align-items: end; align-self: end; min-height: 34px; }
+    .carry { grid-column: 2; font-size: 24px; font-weight: 900; color: var(--tens); opacity: 0; transform: scale(.4); display: grid; justify-items: center; line-height: 1; }
+    .carry small { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 800; unicode-bidi: plaintext; }
+    .carry.show { animation: carryPop .7s var(--spring) forwards; }
+    @keyframes carryPop { 0% { opacity: 0; transform: translate(60px, 40px) scale(.4); } 60% { opacity: 1; transform: translate(0, -6px) scale(1.25); } 100% { opacity: 1; transform: none; } }
+    .rule { height: 4px; border-radius: 2px; background: var(--ink); align-self: center; }
+    .rule.soft { grid-column: 1 / 3; background: var(--line); height: 3px; }
+    .rowname { position: absolute; top: -10px; right: -4px; font-size: 12px; font-weight: 800; color: var(--muted); background: var(--card); padding: 0 6px; border-radius: 8px; unicode-bidi: plaintext; }
+
+    @media (max-width: 560px) {
+      .problem { font-size: 38px; }
+      .ba { gap: 6px 6px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+      .ba .stick { width: 8px; height: 54px; }
+      .ba .bundle { width: 26px; height: 54px; }
+      .ba .mat-body { padding: 6px; gap: 4px; min-height: 72px; }
+      .ba .mat { min-height: 78px; }
+      .digits, .carry-row { grid-template-columns: 20px 34px 34px; font-size: 34px; }
+      .digits .sign { font-size: 26px; }
+      .carry { font-size: 20px; }
+      .cnt { min-width: 24px; height: 24px; font-size: 15px; top: -10px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .cnt.many, .group.grouping .stick, .group.grouping::after, .digits .d.write, .problem .ans.solved { animation: none; }
+      .carry.show { animation: none; opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="../index.html" data-i18n="back"></a>
+    <h1 data-i18n="ba_title"></h1>
+    <div class="toggles" data-toggles></div>
+  </header>
+
+  <main class="page stack">
+    <p class="intro" data-i18n="ba_intro"></p>
+
+    <div class="card stack">
+      <div class="chips">
+        <span class="label" data-i18n="ba_level"></span>
+        <button class="chip" data-level="easy" data-i18n="ba_lv_easy"></button>
+        <button class="chip" data-level="carry" data-i18n="ba_lv_carry"></button>
+        <button class="chip active" data-level="mix" data-i18n="ba_lv_mix"></button>
+      </div>
+      <div class="problem" id="problem"></div>
+
+      <div class="ba" id="ba">
+        <div class="lbl t" data-i18n="mat_tens"></div>
+        <div class="lbl o" data-i18n="mat_ones"></div>
+        <div class="carry-row"><div class="carry" id="carry"><span>1</span><small data-i18n="ba_lbl_carry"></small></div></div>
+
+        <div class="mat mat-tens"><div class="mat-body" id="aT"></div></div>
+        <div class="mat mat-ones"><div class="mat-body" id="aO"></div></div>
+        <div class="digits" id="dA"><span class="sign"></span><span class="d t"></span><span class="d o"></span></div>
+
+        <div class="mat mat-tens"><div class="mat-body" id="bT"></div></div>
+        <div class="mat mat-ones"><div class="mat-body" id="bO"></div></div>
+        <div class="digits" id="dB"><span class="sign">+</span><span class="d t"></span><span class="d o"></span></div>
+
+        <div class="rule soft"></div><div class="rule"></div>
+
+        <div class="mat mat-tens"><span class="rowname" data-i18n="ba_row_sum"></span><div class="cnt" id="cT"></div><div class="mat-body" id="sT"></div></div>
+        <div class="mat mat-ones"><div class="cnt" id="cO"></div><div class="mat-body" id="sO"></div></div>
+        <div class="digits" id="dS"><span class="sign">=</span><span class="d t q">?</span><span class="d o q">?</span></div>
+      </div>
+
+      <div class="caption" id="caption"></div>
+      <div class="controls">
+        <button class="btn ghost small" id="show" data-i18n="ba_show"></button>
+        <button class="btn blue small" id="step" data-i18n="ba_step"></button>
+        <button class="btn small" id="new" data-i18n="ba_new"></button>
+      </div>
+    </div>
+  </main>
+
+  <script src="../assets/strings.js"></script>
+  <script src="../assets/common.js"></script>
+  <script>
+    const el = id => document.getElementById(id);
+    const { t, eq, wait } = PV;
+    const make = cls => Object.assign(document.createElement('div'), { className: cls });
+    const many = (k, cls) => Array.from({ length: k }, () => make(cls));
+    const SPRING = 'cubic-bezier(.34, 1.56, .64, 1)', SETTLE = 'cubic-bezier(.22, 1, .36, 1)';
+    const canAnimate = !!Element.prototype.animate && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const caption = el('caption');
+    const allButtons = [...document.querySelectorAll('.controls .btn, .chips .chip')];
+
+    let level = 'mix', P, steps, at = 0, busy = false, solved = 0;
+
+    function setCaption(html, tone = '') {
+      caption.innerHTML = html; caption.className = 'caption ' + tone;
+      void caption.offsetWidth; caption.classList.add('bump');
+    }
+    /* one busy lock for the whole page: every button is disabled while a step animates, so taps,
+       double-taps and key presses during an animation are simply dropped (see BIBLE §7) */
+    function lock(v) {
+      busy = v;
+      allButtons.forEach(b => b.disabled = v);
+      if (!v) { el('step').disabled = at >= steps.length; el('show').disabled = at >= steps.length; }
+    }
+
+    /* ---------- problems ---------- */
+    function newProblem() {
+      if (busy) return;
+      const carry = level === 'carry' || (level === 'mix' && Math.random() < .5);
+      let a, b;
+      if (carry) {   // ones make 10 or more, tens + carry stay ≤ 9
+        const ao = PV.rand(1, 9), bo = PV.rand(Math.max(1, 10 - ao), 9), atn = PV.rand(1, 7), btn = PV.rand(1, 8 - atn);
+        a = atn * 10 + ao; b = btn * 10 + bo;
+      } else {       // ones ≤ 9 together, tens ≤ 9 together (both numbers two-digit, ones never 0)
+        const ao = PV.rand(1, 8), bo = PV.rand(1, 9 - ao), atn = PV.rand(1, 8), btn = PV.rand(1, 9 - atn);
+        a = atn * 10 + ao; b = btn * 10 + bo;
+      }
+      const so = a % 10 + b % 10, c = so >= 10 ? 1 : 0;
+      P = { a, b, at: Math.floor(a / 10), ao: a % 10, bt: Math.floor(b / 10), bo: b % 10, so, carry: c, st: Math.floor(a / 10) + Math.floor(b / 10) + c, sum: a + b };
+      steps = c ? [joinOnes, carryTen, joinTens, answer] : [joinOnes, joinTens, answer];
+      at = 0;
+      render();
+      setCaption(t('ba_start'));
+      lock(false);
+    }
+
+    function render() {
+      el('problem').innerHTML = `${P.a} + ${P.b} = <span class="ans">?</span>`;
+      el('aT').replaceChildren(...many(P.at, 'bundle')); el('aO').replaceChildren(...many(P.ao, 'stick'));
+      el('bT').replaceChildren(...many(P.bt, 'bundle')); el('bO').replaceChildren(...many(P.bo, 'stick'));
+      el('sT').replaceChildren(); el('sO').replaceChildren();
+      digits('dA', P.at, P.ao); digits('dB', P.bt, P.bo);
+      el('dS').querySelectorAll('.d').forEach(d => { d.textContent = '?'; d.classList.remove('write'); d.classList.add('q'); });
+      el('carry').classList.remove('show');
+      ['cT', 'cO'].forEach(id => { el(id).className = 'cnt'; el(id).textContent = ''; });
+    }
+    function digits(id, tn, o) { const d = el(id).querySelectorAll('.d'); d[0].textContent = tn; d[1].textContent = o; }
+    /* write one answer digit with a little drop-in */
+    function write(place, v) {
+      const d = el('dS').querySelector('.d.' + place);
+      d.textContent = v; d.classList.remove('q', 'write'); void d.offsetWidth; d.classList.add('write');
+      PV.sound.pop();
+    }
+    function count(id, n, red = false) {
+      const c = el(id); c.textContent = n; c.classList.add('show'); c.classList.toggle('many', red);
+    }
+
+    /* ---------- motion ---------- */
+    /* FLIP: new pieces are placed on the target mat first (final layout), then each one is
+       animated from where its source piece sits. Sources fade to a ghost. */
+    async function fly(sources, target, cls, { stagger = 90, ms = 700 } = {}) {
+      const pieces = sources.map(() => { const p = make(cls); p.style.opacity = 0; target.append(p); return p; });
+      const to = pieces.map(p => p.getBoundingClientRect()), from = sources.map(s => s.getBoundingClientRect());
+      pieces.forEach((p, i) => {
+        const dx = from[i].left - to[i].left, dy = from[i].top - to[i].top;
+        const start = () => { sources[i].classList.add('ghost'); p.style.opacity = 1; PV.sound.pop(); };
+        if (!canAnimate) { setTimeout(start, i * stagger); return; }
+        const lift = dx > 0 ? -14 : 14;
+        // 'backwards' fill: the piece waits at its source during the delay and is free of the
+        // animation afterwards (so CSS transforms, e.g. the band tilt, still apply)
+        p.animate([
+          { transform: `translate(${dx}px, ${dy}px) rotate(0deg)` },
+          { transform: `translate(${dx * .45}px, ${dy * .45 - 36}px) rotate(${lift}deg)`, offset: .5 },
+          { transform: 'translate(0, 0) rotate(0deg)' },
+        ], { duration: ms, delay: i * stagger, easing: SETTLE, fill: 'backwards' });
+        setTimeout(start, i * stagger);
+      });
+      await wait(ms + stagger * (sources.length - 1) + 80);
+    }
+
+    /* ---------- the steps ---------- */
+    async function joinOnes() {
+      await fly([...el('aO').children, ...el('bO').children], el('sO'), 'stick');
+      const sum = eq(`<b class="o">${P.ao}</b> + <b class="o">${P.bo}</b> = <b class="o">${P.so}</b>`);
+      count('cO', P.so, P.so > 9);
+      if (P.carry) { setCaption(t('ba_ones_many', { eq: sum, n: P.so }), 'warn'); PV.say(t('say_ten_ones')); }
+      else { write('o', P.so); setCaption(t('ba_ones_ok', { eq: sum, d: P.so })); }
+      await wait(600);
+    }
+
+    async function carryTen() {
+      const mat = el('sO'), ten = [...mat.children].slice(0, 10), g = make('group');
+      mat.prepend(g); ten.forEach(s => g.append(s));
+      await wait(60);
+      g.classList.add('grouping'); PV.sound.bundle();
+      setCaption(t('ba_band'));
+      await wait(1100);
+      // the bundle flies from where the ten sticks are to the tens mat of the "together" row
+      const bundle = make('bundle'); bundle.style.opacity = 0; el('sT').append(bundle);
+      const from = g.getBoundingClientRect(), to = bundle.getBoundingClientRect();
+      const dx = from.left + from.width / 2 - (to.left + to.width / 2), dy = from.top + from.height / 2 - (to.top + to.height / 2);
+      g.style.opacity = 0; await wait(120); g.remove();
+      count('cO', P.so - 10, false);
+      bundle.style.opacity = 1;
+      const FLY = 850;
+      if (canAnimate) bundle.animate([
+        { transform: `translate(${dx}px, ${dy}px) scale(.9)` },
+        { transform: `translate(${dx * .5}px, ${dy * .5 - 50}px) rotate(-10deg) scale(1)`, offset: .5 },
+        { transform: 'translate(0, 0) scale(1.1, .92)', offset: .82 },
+        { transform: 'none' },
+      ], { duration: FLY, easing: SETTLE, fill: 'backwards' });
+      PV.sound.boing(0);
+      await wait(FLY * .82);
+      // landing = the carry moment: the small 1 appears above the tens column and the ones digit is written
+      el('carry').classList.add('show'); PV.sound.good(); PV.sparkle(el('carry'), 6);
+      count('cT', 1);
+      write('o', P.so - 10);
+      setCaption(t('ba_carry', { d: P.so - 10 }), 'good');
+      PV.celebrate('small', { sound: false });
+      await wait(900);
+    }
+
+    async function joinTens() {
+      await fly([...el('aT').children, ...el('bT').children], el('sT'), 'bundle', { stagger: 140, ms: 750 });
+      count('cT', P.st);
+      const parts = [`<b class="t">${P.at}</b>`, `<b class="t">${P.bt}</b>`].concat(P.carry ? [`<b class="t">1</b>`] : []);
+      const sum = eq(`${parts.join(' + ')} = <b class="t">${P.st}</b>`);
+      write('t', P.st);
+      setCaption(t(P.carry ? 'ba_tens_carry' : 'ba_tens', { eq: sum, d: P.st }));
+      await wait(600);
+    }
+
+    async function answer() {
+      el('problem').innerHTML = `${P.a} + ${P.b} = <span class="ans solved">${P.sum}</span>`;
+      setCaption(t('ba_done', { eq: eq(`${P.a} + ${P.b} = <b>${P.sum}</b>`), tens: `<span class="t">${PV.units(P.st, 'ten')}</span>`, ones: `<span class="o">${PV.units(P.sum % 10, 'one')}</span>` }), 'good');
+      PV.say(t('ba_say', { a: PV.word(P.a), b: PV.word(P.b), r: PV.word(P.sum) }));
+      PV.celebrate(++solved % 3 === 0 ? 'big' : 'small');       // every 3rd solved problem gets the big one
+      await wait(400);
+    }
+
+    async function nextStep() {
+      if (busy || at >= steps.length) return;
+      lock(true);
+      await steps[at++]();
+      lock(false);
+    }
+    async function showAll() {
+      if (busy || at >= steps.length) return;
+      lock(true);                                   // one lock for the whole run
+      while (at < steps.length) { await steps[at++](); if (at < steps.length) await wait(700); }
+      lock(false);
+    }
+
+    el('step').onclick = nextStep;
+    el('show').onclick = showAll;
+    el('new').onclick = newProblem;
+    document.querySelectorAll('[data-level]').forEach(b => b.onclick = () => {
+      if (busy) return;
+      document.querySelectorAll('[data-level]').forEach(x => x.classList.toggle('active', x === b));
+      level = b.dataset.level; newProblem();
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'ArrowRight') { e.preventDefault(); nextStep(); } });
+    newProblem();
+  </script>
+</body>
+</html>

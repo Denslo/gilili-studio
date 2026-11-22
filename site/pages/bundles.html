@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="bu_title">Sticks &amp; Bundles</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔢</text></svg>">
+  <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="../index.html" data-i18n="back"></a>
+    <h1 data-i18n="bu_title"></h1>
+    <div class="toggles" data-toggles></div>
+  </header>
+
+  <main class="page stack">
+    <p class="intro" data-i18n="bu_intro"></p>
+
+    <div class="card stack">
+      <div id="display"></div>
+      <div class="mats">
+        <div class="mat mat-tens"><div class="mat-head" data-i18n="bu_mat_tens"></div><div class="mat-body" id="tens"></div></div>
+        <div class="mat mat-ones"><div class="mat-head" data-i18n="bu_mat_ones"></div><div class="mat-body sticks" id="ones"></div></div>
+      </div>
+      <div class="caption" id="caption"></div>
+      <div class="steps" id="steps">
+        <button class="btn minus" data-k="-10">− 10</button>
+        <button class="btn minus" data-k="-5">− 5</button>
+        <button class="btn minus" data-k="-2">− 2</button>
+        <button class="btn minus one" data-k="-1">− 1</button>
+        <button class="btn plus one" data-k="1">+ 1</button>
+        <button class="btn plus" data-k="2">+ 2</button>
+        <button class="btn plus" data-k="5">+ 5</button>
+        <button class="btn plus" data-k="10">+ 10</button>
+      </div>
+      <p class="kbd-hint" style="font-size:16px" data-i18n="bu_steps"></p>
+      <div id="chips" class="stack"></div>
+      <div class="kbd-hint" data-i18n="kbd_hint"></div>
+    </div>
+  </main>
+
+  <script src="../assets/strings.js"></script>
+  <script src="../assets/common.js"></script>
+  <script>
+    const el = id => document.getElementById(id);
+    const make = cls => () => Object.assign(document.createElement('div'), { className: cls });
+    const stepBtns = [...document.querySelectorAll('#steps [data-k]')];
+    // chips first, so the engine can lock them (with the buttons) while a jump is animating
+    PV.edgeChips(el('chips'), k => model.set(k));
+    const model = PV.exchange({
+      onesEl: el('ones'), tensEl: el('tens'), caption: el('caption'),
+      display: PV.makeDisplay(el('display')),
+      makeOne: make('stick'), makeTen: make('bundle'),
+      start: 17,
+      buttons: [...stepBtns.map(b => ({ el: b, k: +b.dataset.k })), ...el('chips').querySelectorAll('.chip')],
+    });
+    model.setCaption(PV.t('bu_start'));
+    stepBtns.forEach(b => b.onclick = () => model.add(+b.dataset.k));
+    PV.bindKeys(model);
+  </script>
+</body>
+</html>

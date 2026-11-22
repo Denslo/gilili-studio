@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="sm_title">Spot the Mistake</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔢</text></svg>">
+  <link rel="stylesheet" href="../assets/style.css">
+  <style>
+    .owl-row { display: flex; align-items: center; gap: 14px; }
+    .owl-wrap { position: relative; flex: none; }
+    .owl { font-size: 72px; line-height: 1; display: inline-block; transform-origin: 50% 90%; animation: owlFloat 3.2s ease-in-out infinite; }
+    .owl.talk { animation: owlTalk .9s ease-in-out infinite; }
+    .owl.happy { animation: owlHappy .9s var(--settle); }
+    .owl.surprised { animation: owlSurprised .7s ease; }
+    .owl.think { animation: owlThink 1.2s ease; }
+    @keyframes owlFloat { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-5px) rotate(-3deg); } }
+    @keyframes owlTalk { 0%, 100% { transform: scale(1, 1); } 35% { transform: translateY(-9px) scale(.94, 1.1); } 60% { transform: translateY(0) scale(1.08, .92); } 75% { transform: scale(.98, 1.02); } }
+    @keyframes owlHappy { 0% { transform: scale(1); } 25% { transform: translateY(-26px) rotate(-12deg) scale(1.1); } 50% { transform: translateY(0) rotate(0) scale(1.12, .88); } 70% { transform: translateY(-12px) rotate(10deg); } 100% { transform: none; } }
+    @keyframes owlSurprised { 0% { transform: scale(1); } 20% { transform: scale(1.25) translateY(-8px); } 40% { transform: scale(1.2) rotate(-8deg); } 60% { transform: scale(1.2) rotate(8deg); } 80% { transform: scale(1.15) rotate(-4deg); } 100% { transform: none; } }
+    @keyframes owlThink { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(14deg) translateX(4px); } 70% { transform: rotate(12deg) translateX(4px); } }
+    .mood { position: absolute; top: -10px; right: -14px; font-size: 32px; line-height: 1; pointer-events: none; opacity: 0; }
+    .mood.show { animation: moodPop 1.6s var(--settle) forwards; }
+    @keyframes moodPop { 0% { transform: scale(0) rotate(-20deg); opacity: 0; } 20% { transform: scale(1.2) rotate(6deg); opacity: 1; } 35% { transform: scale(1); } 80% { transform: translateY(-6px); opacity: 1; } 100% { transform: translateY(-14px) scale(.8); opacity: 0; } }
+    .bubble { flex: 1; background: var(--bg); border-radius: 18px; padding: 14px; font-size: 20px; font-weight: 800; position: relative; }
+    .bubble.bump { animation: captionIn .35s var(--settle); }
+    .bubble::before { content: ''; position: absolute; left: -12px; top: 50%; transform: translateY(-50%); border: 12px solid transparent; border-right-color: var(--bg); border-left: 0; }
+    [dir="rtl"] .bubble::before { left: auto; right: -12px; border: 12px solid transparent; border-left-color: var(--bg); border-right: 0; }
+    .seq { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+    .num {
+      font: inherit; font-size: clamp(28px, 7vw, 44px); font-weight: 900; min-width: 92px; padding: 10px 12px;
+      border-radius: 16px; border: 3px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; animation: numIn .55s var(--spring) both;
+      transition: border-color .3s, background .3s, box-shadow .3s;
+    }
+    @keyframes numIn { from { transform: scale(.2) rotate(-14deg) translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+    .num:disabled { cursor: default; }
+    .num.bad { border-color: var(--bad); background: var(--bad-soft); animation: shake .3s ease 2; }
+    .num.ok { border-color: var(--good); background: var(--good-soft); animation: bounceIn .55s var(--settle); }
+    .num.picked { box-shadow: 0 0 0 4px var(--ones); animation: shake .3s ease 2; }
+    .num.picked.bad { animation: bounceIn .55s var(--settle); }
+    .arrow-sep { animation: numIn .4s var(--settle) both; }
+    @media (prefers-reduced-motion: reduce) { .owl, .owl.talk, .owl.happy, .owl.surprised, .owl.think, .mood.show, .bubble.bump, .num, .num.bad, .num.ok, .num.picked, .arrow-sep { animation: none; } .mood.show { opacity: 1; } }
+    .arrow-sep { align-self: center; color: var(--muted); font-weight: 900; }
+    .score { text-align: center; font-weight: 900; font-size: 20px; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="../index.html" data-i18n="back"></a>
+    <h1 data-i18n="sm_title"></h1>
+    <div class="toggles" data-toggles></div>
+  </header>
+
+  <main class="page stack">
+    <p class="intro" data-i18n="sm_intro"></p>
+    <div class="card stack">
+      <div class="score" id="score"></div>
+      <div class="owl-row"><div class="owl-wrap"><div class="owl" id="owl">🦉</div><span class="mood" id="mood"></span></div><div class="bubble" id="bubble"></div></div>
+      <div class="seq" id="seq"></div>
+      <div class="controls" id="actions"></div>
+      <div class="caption" id="caption"></div>
+    </div>
+  </main>
+
+  <script src="../assets/strings.js"></script>
+  <script src="../assets/common.js"></script>
+  <script>
+    const el = id => document.getElementById(id);
+    const { t, units } = PV;
+    const caption = el('caption');
+    let round, score = 0, answered;
+
+    function makeRound() {
+      const forward = Math.random() < .7;
+      let seq, crossIdx, x;
+      if (forward) {
+        x = PV.rand(0, 8);                       // crossing x9 → (x+1)0 (stops at 89 → 90: every number stays under 100)
+        const k = PV.rand(2, 3), start = x * 10 + 9 - k;
+        seq = Array.from({ length: 6 }, (_, i) => start + i);
+        crossIdx = k + 1;
+      } else {
+        x = PV.rand(2, 9);                       // crossing x0 → (x-1)9
+        const k = PV.rand(2, 3), start = x * 10 + k;
+        seq = Array.from({ length: 6 }, (_, i) => start - i);
+        crossIdx = k + 1;
+      }
+      const correctVal = seq[crossIdx];
+      let mistake = null;
+      if (Math.random() < .65) {
+        const wrongs = forward
+          ? [{ v: (x + 2) * 10, why: 'sm_why_skip' }, { v: x * 10, why: 'sm_why_stay' }]
+              .filter(w => w.v <= 99 && !(x === 0 && w.why === 'sm_why_stay'))   // no 100 after 89; "0" makes no sense after 9
+          : [{ v: x * 10 + 9, why: 'sm_why_noopen' }, { v: (x - 1) * 10, why: 'sm_why_nine' }];
+        mistake = wrongs[PV.rand(0, wrongs.length - 1)];
+        seq[crossIdx] = mistake.v;
+      }
+      return { forward, seq, crossIdx, correctVal, mistake, prev: seq[crossIdx - 1] };
+    }
+
+    /* the owl's face: 'talk' while counting, then happy / surprised / think, with a little mood badge */
+    function owlMood(state, badge = '') {
+      const owl = el('owl'), mood = el('mood');
+      owl.classList.remove('talk', 'happy', 'surprised', 'think'); void owl.offsetWidth;
+      if (state) owl.classList.add(state);
+      mood.classList.remove('show'); void mood.offsetWidth;
+      if (badge) { mood.textContent = badge; mood.classList.add('show'); }
+    }
+    function speak(html) {
+      const b = el('bubble'); b.innerHTML = html;
+      b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump');
+    }
+
+    // answered stays true while the owl counts, so nothing can be judged early; gen stops an older counting loop if a new round starts
+    let gen = 0;
+    async function play() {
+      const g = ++gen;
+      round = makeRound(); answered = true;
+      el('seq').replaceChildren(); el('actions').replaceChildren();
+      caption.innerHTML = ''; caption.className = 'caption';
+      speak(t(round.forward ? 'sm_up' : 'sm_down'));
+      owlMood('talk');
+      await PV.wait(600);
+      if (g !== gen) return;
+      for (let i = 0; i < round.seq.length; i++) {
+        if (i) el('seq').append(Object.assign(document.createElement('span'), { className: 'arrow-sep', textContent: round.forward ? '→' : '←' }));
+        const b = document.createElement('button'); b.className = 'num'; b.textContent = round.seq[i]; b.disabled = true;
+        b.onclick = () => judge(i, b);
+        el('seq').append(b); PV.sound.pop(); PV.say(PV.word(round.seq[i]));
+        await PV.wait(900);
+        if (g !== gen) return;
+      }
+      answered = false;
+      owlMood('think', '🤔');
+      el('seq').querySelectorAll('.num').forEach(b => b.disabled = false);
+      speak(t('sm_right_q'));
+      const ok = document.createElement('button'); ok.className = 'btn plus small'; ok.innerHTML = t('sm_all_ok');
+      ok.onclick = () => judge(-1, ok);
+      el('actions').append(ok);
+      caption.innerHTML = t('sm_tap');
+    }
+
+    function explain() {
+      const { forward, prev, correctVal } = round;
+      const tn = Math.floor(prev / 10);
+      return forward
+        ? t('sm_exp_fwd', { prev, c: correctVal, t: tn, t1: tn + 1 })
+        : t('sm_exp_back', { prev, c: correctVal, tens: units(tn - 1, 'ten') });
+    }
+
+    function judge(i, btn) {
+      if (answered) return;
+      const nums = [...el('seq').querySelectorAll('.num')];
+      const wrongIdx = round.mistake ? round.crossIdx : -1;
+      answered = true;
+      nums.forEach(b => b.disabled = true);
+      if (i === wrongIdx) {
+        score++; PV.sound.good();
+        if (i >= 0) { btn.classList.add('bad', 'picked'); btn.innerHTML = `<s>${round.seq[i]}</s> ${round.correctVal}`; PV.sparkle(btn); }
+        else PV.sparkle(btn);
+        // caught out → the owl is surprised; counted right → the owl is proud
+        owlMood(i >= 0 ? 'surprised' : 'happy', i >= 0 ? '❗' : '⭐');
+        speak(t(i >= 0 ? 'sm_oops' : 'sm_yay'));
+        caption.innerHTML = (i >= 0 ? t('sm_catch', { why: t(round.mistake.why) }) : t('sm_none')) + explain();
+        caption.className = 'caption good';
+        PV.celebrate(score % 5 === 0 ? 'big' : 'small', { sound: score % 5 === 0 });   // every 5th point: the big one
+      } else {
+        PV.sound.bad();
+        if (i >= 0) btn.classList.add('picked');
+        if (wrongIdx >= 0) { nums[wrongIdx].classList.add('bad'); nums[wrongIdx].innerHTML = `<s>${round.seq[wrongIdx]}</s> ${round.correctVal}`; }
+        else nums[round.crossIdx].classList.add('ok');
+        owlMood('think', '💭');
+        speak(wrongIdx >= 0 ? t('sm_was', { v: round.seq[wrongIdx] }) : t('sm_actually'));
+        caption.innerHTML = explain(); caption.className = 'caption warn';
+      }
+      el('score').innerHTML = t('sm_score', { n: score });
+      el('actions').replaceChildren();
+      const next = document.createElement('button'); next.className = 'btn blue small'; next.innerHTML = t('sm_next');
+      next.onclick = () => { next.disabled = true; play(); }; el('actions').append(next);
+    }
+
+    // once a reaction finishes, go back to the idle float
+    el('owl').addEventListener('animationend', e => {
+      if (['owlHappy', 'owlSurprised', 'owlThink'].includes(e.animationName)) el('owl').classList.remove('happy', 'surprised', 'think');
+    });
+    el('score').innerHTML = t('sm_score', { n: 0 });
+    play();
+  </script>
+</body>
+</html>
